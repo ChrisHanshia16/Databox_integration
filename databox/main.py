@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi import FastAPI, HTTPException
 import httpx
 
@@ -10,8 +10,8 @@ def get_hello():
     return {"message": "Hello, this is a FastAPI GET API!"}
 
 
-@app.get("/v1/post")
-async def call_external_api():
+@app.get("/v1/pipelines")
+async def call_external_api(ids: str = None):
     async with httpx.AsyncClient() as client:
         try:
             headers = {
@@ -23,10 +23,16 @@ async def call_external_api():
 
             response.raise_for_status()
             id = response.json()
+            print("Query", ids)
+            responsetwo = await client.get(
+                "https://rest.gohighlevel.com/v1/pipelines/"
+                + id["pipelines"][0]["id"]
+                + "/opportunities",
+                headers=headers,
+            )
 
-            print(id["pipelines"][0]["id"])
             # Raise an HTTPError for bad responses (4xx and 5xx status codes)
-            return 0
+            return responsetwo.json()
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=500, detail=f"Error calling external API: {e}"
