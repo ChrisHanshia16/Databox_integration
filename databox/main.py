@@ -11,7 +11,7 @@ def get_hello():
 
 
 @app.get("/v1/pipelines")
-async def call_external_api(ids: str = None):
+async def call_external_api(pipeline: str = None, opportunities: str = None):
     async with httpx.AsyncClient() as client:
         try:
             headers = {
@@ -20,19 +20,42 @@ async def call_external_api(ids: str = None):
             response = await client.get(
                 "https://rest.gohighlevel.com/v1/pipelines/", headers=headers
             )
-
             response.raise_for_status()
             id = response.json()
-            print("Query", ids)
+            x = ""
+            index = 0
+            for i in id["pipelines"]:
+                if i["name"] == pipeline:
+                    x = i["id"]
+                    break
+                else:
+                    index = +1
+                    continue
+            # print(id["pipelines"][index]["stages"])
+            op = ""
+            for j in id["pipelines"][index]["stages"]:
+                if opportunities == j["name"]:
+                    op = j["id"]
+                    break
+                else:
+                    continue
             responsetwo = await client.get(
-                "https://rest.gohighlevel.com/v1/pipelines/"
-                + id["pipelines"][0]["id"]
-                + "/opportunities",
+                "https://rest.gohighlevel.com/v1/pipelines/" + x + "/opportunities",
                 headers=headers,
             )
+            data = responsetwo.json()
+            newdata = []
+            for i in data["opportunities"]:
+                if op == i["pipelineStageId"]:
+                    newdata.append(i)
 
             # Raise an HTTPError for bad responses (4xx and 5xx status codes)
-            return responsetwo.json()
+            if opportunities != None:
+                return newdata
+
+            else:
+                return data["opportunities"]
+
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=500, detail=f"Error calling external API: {e}"
