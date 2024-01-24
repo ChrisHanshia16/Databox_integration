@@ -1,10 +1,8 @@
-from fastapi import FastAPI, Query
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 import httpx
-
-app = FastAPI()
-
-
+ 
+app = FastAPI() 
+ 
 @app.get("/v1/pipelines")
 async def call_external_api(
     pipeline: str = None,
@@ -13,20 +11,20 @@ async def call_external_api(
     name: str = None,
     status: str = None,
     monetaryValue: int = None,
+    authorization: str = Header(..., alias="Authorization")
+
 ):
     try:
-        headers = {
-            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6IlhSMnFRc1JyWHAyMWIzQUdlcVZWIiwiY29tcGFueV9pZCI6IjZDa0tGR2d4Q0JwTUpXU082RlZWIiwidmVyc2lvbiI6MSwiaWF0IjoxNjk4MjI0MDc0NTY3LCJzdWIiOiJ1c2VyX2lkIn0.eKR11ubo3AoZxa2M9EamAfY6RCkwiIV9WsaiePFpiYg"
-        }
-
+        token = authorization.split(" ")[1]
+        headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 "https://rest.gohighlevel.com/v1/pipelines/", headers=headers
             )
             response.raise_for_status()
-
+ 
             pipelines = response.json()["pipelines"]
-
+ 
             pipeline_id = next(
                 (p["id"] for p in pipelines if p["name"] == pipeline), None
             )
@@ -38,23 +36,23 @@ async def call_external_api(
                             if opportunities == j["name"]:
                                 stage_id = j["id"]
                                 break
-
+ 
             if pipeline_id is None:
                 raise HTTPException(status_code=404, detail="Pipeline not found")
-
+ 
             opportunities_response = await client.get(
                 f"https://rest.gohighlevel.com/v1/pipelines/{pipeline_id}/opportunities",
                 headers=headers,
             )
             opportunities_response.raise_for_status()
-
+ 
             opportunities_data = opportunities_response.json()["opportunities"]
-
+ 
             if opportunities is not None:
                 filtered_opportunities = [
                     op for op in opportunities_data if op["pipelineStageId"] == stage_id
                 ]
-
+ 
             elif source is not None:
                 filtered_opportunities = [
                     op for op in opportunities_data if op["source"] == source
@@ -69,17 +67,16 @@ async def call_external_api(
                 ]
             elif monetaryValue is not None:
                 filtered_opportunities = [
-                    op
-                    for op in opportunities_data
-                    if op["monetaryValue"] == monetaryValue
+                    op for op in opportunities_data if op["monetaryValue"] == monetaryValue
                 ]
             else:
                 filtered_opportunities = opportunities_data
             if not filtered_opportunities:
                 return {"message": "No values found"}
-
+ 
             return filtered_opportunities
-
+ 
     except httpx.HTTPError as e:
+        if e.response.status_code == 401:
+            raise HTTPException(status_code=401, detail="Unauthorized: Invalid token")
         raise HTTPException(status_code=500, detail=f"Error calling external API: {e}")
-    
